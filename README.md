@@ -1,6 +1,6 @@
 # MAP_ToySocialNetwork
 
-A console-based toy social network written in Java, built for the *Advanced Programming Methods* course (Lab 2).
+A console-based toy social network written in Java, built for the *Advanced Programming Methods* course .
 
 ## Features
 
