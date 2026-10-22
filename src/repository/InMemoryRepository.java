@@ -1,16 +1,25 @@
 package repository;
 
 import domain.Entity;
-import domain.Validator;
+import validators.Validator;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Repository that keeps the entities in memory, in a map indexed by id.
+ */
 public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<ID, E> {
     private final Validator<E> validator;
     private final Map<ID, E> repo = new HashMap<>();
 
+    /**
+     * Creates an empty repository.
+     *
+     * @param v the validation strategy
+     * @throws NullPointerException if v is null
+     */
     public InMemoryRepository(Validator<E> v) {
         this.validator = Objects.requireNonNull(v, "Validator obligatoriu!");
     }
@@ -24,7 +33,7 @@ public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<
     }
 
     @Override
-    public Iterable<E> findAll() { //cel mai generica clasa -read-only:E posibila copierea
+    public Iterable<E> findAll() { // live view of the stored entities; do not modify the repository while iterating
         return repo.values();
     }
 

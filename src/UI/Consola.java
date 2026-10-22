@@ -2,13 +2,23 @@ package UI;
 
 import domain.*;
 import Service.*;
+import repository.RepositoryException;
+import validators.ValidationException;
 
 import java.util.Scanner;
 
+/**
+ * Console menu of the application.
+ */
 public class Consola {
     private final Service service;
     private final Scanner scanner = new Scanner(System.in);
 
+    /**
+     * Creates the console over the service.
+     *
+     * @param service the application service
+     */
     public Consola(Service service) {
         this.service = service;
     }
@@ -22,9 +32,14 @@ public class Consola {
         System.out.println("5. Afiseaza utilizatori");
         System.out.println("6. Afiseaza prietenii");
         System.out.println("7. Afiseaza numar comunitati");
+        System.out.println("8. Afiseaza comunitate sociabila");
         System.out.println("0. Iesire");
     }
 
+    /**
+     * Shows the menu until the user chooses to exit.
+     * Errors are shown as messages.
+     */
     public void run() {
         boolean activ = true;
         while (activ) {
@@ -33,25 +48,31 @@ public class Consola {
             String optiune = scanner.nextLine();
             try {
                 switch (optiune) {
-                    case "1" -> adaugaUtilizator();
-                    case "2" -> stergeUtilizator();
-                    case "3" -> adaugaPrietenie();
-                    case "4" -> stergePrietenie();
-                    case "5" -> afiseazaUtilizatori();
-                    case "6" -> afiseazaPrietenii();
-                    case "7" -> afiseazaNumarComunitati();
-                    case "8" -> afiseazaComunitateSociabila();
-                    case "0" -> activ = false;
-                    default -> System.out.println("Optiune invalida");
+                    case "1": adaugaUtilizator();
+                                break;
+                    case "2": stergeUtilizator();
+                                break;
+                    case "3": adaugaPrietenie();
+                                break;
+                    case "4": stergePrietenie();
+                                break;
+                    case "5": afiseazaUtilizatori();
+                                break;
+                    case "6": afiseazaPrietenii();
+                                break;
+                    case "7": afiseazaNumarComunitati();
+                                break;
+                    case "8": afiseazaComunitateSociabila();
+                                break;
+                    case "0": activ = false;
+                                break;
+                    default : System.out.println("Optiune invalida");
                 }
-            } catch (ValidationException | ServiceException e) {
+            } catch (ValidationException | ServiceException | RepositoryException | NumberFormatException | UnsupportedOperationException e) {
                 System.out.println("Eroare: " + e.getMessage());
-            } catch (NumberFormatException e) {
-                System.out.println("Eroare: trebuie introdus un numar");
             }
         }
     }
-
     private void adaugaUtilizator() {
         System.out.print("Nume: ");
         String nume = scanner.nextLine();

@@ -1,6 +1,17 @@
-package domain;
+package validators;
 
-public class UtilizatorValidator  implements Validator<Utilizator>{
+import domain.Utilizator;
+
+/**
+ * Validates users: first and last name must not be blank.
+ */
+public class UtilizatorValidator  implements Validator<Utilizator> {
+   /**
+    * Checks that the user has a first and a last name.
+    *
+    * @param t the user to validate
+    * @throws ValidationException if a name is null or blank
+    */
     @Override
    public void validate(Utilizator t) {
         String erori = "";

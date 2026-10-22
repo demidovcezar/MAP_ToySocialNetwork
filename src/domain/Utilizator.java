@@ -2,9 +2,18 @@ package domain;
 
 import java.util.Objects;
 
+/**
+ * A user of the social network.
+ */
 public class Utilizator extends Entity<Integer> implements Comparable<Utilizator>{
     private String nume;
     private String prenume;
+    /**
+     * Creates a user.
+     * @param id the user id
+     * @param nume the last name
+     * @param prenume the first name
+     */
     public Utilizator(int id,String nume,String prenume)
     {
         super(id);
@@ -12,19 +21,39 @@ public class Utilizator extends Entity<Integer> implements Comparable<Utilizator
         this.prenume=prenume;
 
     }
+    /**
+     * Sets the last name.
+     *
+     * @param Nume the new last name
+     */
     public void setNume(String Nume)
     {
         this.nume=Nume;
     }
+    /**
+     * Sets the first name.
+     *
+     * @param Prenume the new first name
+     */
     public void setPrenume(String Prenume)
     {
         this.prenume=Prenume;
     }
+    /**
+     * Returns the last name.
+     *
+     * @return the last name
+     */
     public String getNume()
     {
         return nume;
 
     }
+    /**
+     * Returns the first name.
+     *
+     * @return the first name
+     */
     public String getPrenume()
     {
         return prenume;
