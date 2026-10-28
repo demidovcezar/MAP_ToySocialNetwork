@@ -1,11 +1,22 @@
 package repository;
 
-import java.io.*;
-import java.nio.charset.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.time.DateTimeException;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import domain.Entity;
-import validators.*;
+import validators.ValidationException;
+import validators.Validator;
 
 /**
  * Repository that also keeps its entities in a text file, one per line.
@@ -30,31 +41,40 @@ public abstract class  AbstractFileRepository<ID,E extends Entity<ID>> extends I
      * @throws RepositoryException if the file cannot be read
      */
     private void loadData() {
-        try (BufferedReader reader = new BufferedReader(new FileReader(fileName, StandardCharsets.UTF_8))) {
-            String linie = reader.readLine();
-            int numarLinie = 0;
-            while (linie != null) {
-                numarLinie++;
-                if (!linie.isBlank()) {
-                    try {
-                        E entity = extractEntity(linie);
-                        E existent = super.save(entity);
-                        if (existent != null) {
-                            System.err.println("Linia " + numarLinie + " ignorata: id duplicat (" + linie + ")");
-                        }
-                    } catch (NumberFormatException | ArrayIndexOutOfBoundsException
-                             | DateTimeException | ValidationException e) {
-                        System.err.println("Linia " + numarLinie + " ignorata: " + e.getMessage() + " (" + linie + ")");
-                    }
-                }
-                linie = reader.readLine();
-            }
-        } catch (FileNotFoundException e) {
+        try (Stream<String> flux = Files.lines(Path.of(fileName), StandardCharsets.UTF_8)) { //citim fisieru
+            List<String> linii = flux.collect(Collectors.toList());//transformam in lista de stringuri
+            IntStream.range(0, linii.size())//luam pe fiecare
+                    .forEach(i -> proceseazaLinia(i + 1, linii.get(i)));//procesam
+        } catch (NoSuchFileException e) {
             System.out.println("Fisierul " + fileName + " nu exista; repository gol.");
         } catch (IOException e) {
             throw new RepositoryException("Eroare la citire: " + fileName, e);
+        } catch (UncheckedIOException e) {
+            throw new RepositoryException("Eroare la citire: " + fileName, e.getCause());
         }
     }
+
+    /**
+     * Converts one line to an entity and saves it; an invalid line is reported and skipped.
+     *
+     * @param numarLinie the number of the line in the file, starting from 1
+     * @param linie the text of the line
+     */
+    private void proceseazaLinia(int numarLinie, String linie) {
+        if (linie.isBlank()) {
+            return;
+        }
+        try {
+            E entitate = extractEntity(linie);
+            if (super.save(entitate) != null) {
+                System.err.println("Linia " + numarLinie + " ignorata: id duplicat (" + linie + ")");
+            }
+        } catch (NumberFormatException | ArrayIndexOutOfBoundsException
+                 | DateTimeException | ValidationException e) {
+            System.err.println("Linia " + numarLinie + " ignorata: " + e.getMessage() + " (" + linie + ")");
+        }
+    }
+
     /**
      * Rewrites the whole file.
      *
@@ -62,16 +82,16 @@ public abstract class  AbstractFileRepository<ID,E extends Entity<ID>> extends I
      */
     private void writeToFile()
     {
-        File file = new File(fileName).getParentFile();
-        if(file!=null)
-            file.mkdirs();
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName, StandardCharsets.UTF_8))) {
-            for(var elem : findAll())
-           {
-               writer.write(createEntityAsString(elem));
-               writer.newLine();
+        File folder = new File(fileName).getParentFile();//locatie fisier
+        if (folder != null) {//daca fisierul e dat fara folder
+            folder.mkdirs();
+        }
+        try{
+            List<String> linii = StreamSupport.stream(findAll().spliterator(), false)//transformam intr-un stream de entitati
+                    .map(this::createEntityAsString)//aplicam functia createEntityAsString pe fiecare entitate
+                    .collect(Collectors.toList());//transformam intr-o lista de stringuri
+            Files.write(Path.of(fileName), linii, StandardCharsets.UTF_8);//scriere fisier
 
-           }
         } catch (IOException e) {
             throw new RepositoryException("Eroare la scriere: " + fileName, e);
         }

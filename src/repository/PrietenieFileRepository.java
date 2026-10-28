@@ -11,14 +11,14 @@ import java.time.LocalDateTime;
  * Text file repository for friendships; line format: id1;id2;date (ISO).
  */
 public class PrietenieFileRepository  extends AbstractFileRepository<Pereche<Integer,Integer>, Prietenie>{
-
     /**
      * Creates the repository and loads the friendships from the file.
      *
      * @param fileName the path of the text file
      * @param validator the validation strategy
      */
-    public PrietenieFileRepository(String fileName, Validator<Prietenie> validator){
+    public PrietenieFileRepository(String fileName, Validator<Prietenie> validator)
+    {
         super(validator,fileName);
     }
     /**
