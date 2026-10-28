@@ -3,12 +3,36 @@ package repository;
 import domain.Entity;
 import validators.ValidationException;
 
-/**
- * Generic CRUD repository for entities identified by an id of type ID.
- * @param <ID> - type E must have an attribute of type ID
- * @param <E> - type of entities saved in repository
- */
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+
 public interface Repository<ID, E extends Entity<ID>> {
+
+    /**
+     * Finds all the entities that satisfy the given filter.
+     *
+     * @param filter the condition an entity must satisfy
+     * @return the list of entities for which the filter is true
+     * @throws IllegalArgumentException if the filter is null
+     */
+    default List<E> findAll(Predicate<E> filter)
+    {
+        if(filter==null)
+        {
+            throw  new IllegalArgumentException("The filter is null");
+        }
+
+        return StreamSupport.stream(findAll().spliterator(),false)
+        .filter(filter)
+        .collect(Collectors.toList());
+
+    }
+
+
     /**
      * Finds the entity with the given id.
      *

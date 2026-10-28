@@ -8,14 +8,17 @@ import repository.RepositoryException;
 import repository.RepositoryFactory;
 import validators.PrietenieValidator;
 import validators.UtilizatorValidator;
+import validators.ValidationException;
 import validators.Validator;
 
+
 /**
- * Starts the application; the repositories are created by the factory.
+ * Entry point of the application.
  */
 public class Main {
     /**
-     * Creates the repositories, the service and the console, then runs the menu.
+     * Reads the configuration, builds the validators and the repositories
+     * and starts the console.
      *
      * @param args not used
      */
@@ -23,6 +26,12 @@ public class Main {
         try {
             RepositoryFactory factory = new RepositoryFactory();
             Validator<Utilizator> validatorUtilizatori = new UtilizatorValidator();
+            Validator<Utilizator> maxZeceCaractere = u -> {
+                if ( u.getNume().length()>10 ) {
+                    throw new ValidationException("Numele Utilizatorul are mai mult de 10 litere");
+                }
+            };
+            validatorUtilizatori=validatorUtilizatori.andThen(maxZeceCaractere);
             Validator<Prietenie> validatorPrietenii = new PrietenieValidator();
             Repository<Integer, Utilizator> repoUtilizatori = factory.createUtilizatorRepository(validatorUtilizatori);
             Repository<Pereche<Integer, Integer>, Prietenie> repoPrietenii = factory.createPrietenieRepository(validatorPrietenii);
