@@ -6,6 +6,9 @@ import repository.Repository;
 import domain.*;
 
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Business logic: users, friendships and communities.
@@ -29,14 +32,23 @@ public class Service {
      * @return the next free user id (maximum id + 1)
      */
     private int genereazaId() {
-        int max = 0;
-        for (Utilizator u : repoUtilizatori.findAll()) {
-            if (u.getId() > max) {
-                max = u.getId();
-            }
-        }
-        return max + 1;
+        return StreamSupport.stream(repoUtilizatori.findAll().spliterator(), false)
+                .map(Utilizator::getId)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
     }
+    /**
+     * Finds a user by id.
+     *
+     * @param id the user id
+     * @return the user with the given id
+     * @throws ServiceException if the user does not exist
+     */
+    private Utilizator gasesteUtilizator(int id) {
+        return Optional.ofNullable(repoUtilizatori.findOne(id))
+                .orElseThrow(() -> new ServiceException("Utilizatorul " + id + " nu exista"));
+    }
+
     /**
      * Adds a user with a generated id.
      *
@@ -68,13 +80,8 @@ public class Service {
     public void adaugaPrietenie(int a,int b)
     {
         Prietenie noua =new Prietenie(a,b);
-        if (repoUtilizatori.findOne(a) == null) {
-            throw new ServiceException("Utilizatorul " + a + " nu exista");
-        }
-
-        if (repoUtilizatori.findOne(b) == null) {
-            throw new ServiceException("Utilizatorul " + b + " nu exista");
-        }
+        gasesteUtilizator(a);
+        gasesteUtilizator(b);
         if(repoPrietenii.save(noua)!=null)
         {
             throw  new ServiceException("Prietenia exista deja");
@@ -104,19 +111,13 @@ public class Service {
      * @throws repository.RepositoryException if the data cannot be persisted
      */
     public void stergeUtilizator(int id) {
-        if (repoUtilizatori.findOne(id) == null) {
-            throw new ServiceException("Utilizatorul " + id + " nu exista");
-        }
-        List<Prietenie> deSters = new ArrayList<>();
-        for (Prietenie p : repoPrietenii.findAll()) {
-            if (p.getIdUtilizator1() == id || p.getIdUtilizator2() == id) {
-                deSters.add(p);
-            }
-        }
-        for (Prietenie p : deSters) {
-            repoPrietenii.delete(p.getId());
-        }
+        gasesteUtilizator(id);
+        List<Prietenie> deSters = StreamSupport.stream(repoPrietenii.findAll().spliterator(), false)
+                .filter(p -> p.getIdUtilizator1() == id || p.getIdUtilizator2() == id)
+                .collect(Collectors.toList());
+        deSters.forEach(p -> repoPrietenii.delete(p.getId()));
         repoUtilizatori.delete(id);
+
     }
     /**
      * Returns all users.
@@ -137,85 +138,151 @@ public class Service {
     }
 
     /**
+     * Finds the users whose first name starts with a prefix.
+     *
+     * @param prefix the prefix of the first name
+     * @return the users whose first name starts with the prefix
+     */
+    public List<Utilizator> cautaDupaPrenume(String prefix) {
+        return repoUtilizatori.findAll(CriteriiUtilizator.prenumeleIncepeCu(prefix));
+    }
+
+    /**
+     * Finds the users with a given last name.
+     *
+     * @param nume the last name
+     * @return the users with the given last name
+     */
+    public List<Utilizator> cautaDupaNume(String nume) {
+        return repoUtilizatori.findAll(CriteriiUtilizator.areNumele(nume));
+    }
+
+    /**
+     * Finds the users whose first name starts with a prefix and who have a given last name.
+     *
+     * @param prefix the prefix of the first name
+     * @param nume the last name
+     * @return the users that satisfy both criteria
+     */
+    public List<Utilizator> cautaDupaPrenumeSiNume(String prefix, String nume) {
+        return repoUtilizatori.findAll(
+                CriteriiUtilizator.prenumeleIncepeCu(prefix).and(CriteriiUtilizator.areNumele(nume)));
+    }
+
+    /**
+     * Finds the users whose last name is not short.
+     *
+     * @return the users with a long last name
+     */
+    public List<Utilizator> cautaCuNumeLung() {
+        return repoUtilizatori.findAll(Predicate.not(CriteriiUtilizator::areNumeScurt));
+    }
+
+    /**
+     * Returns the ids of the friends of a user.
+     *
+     * @param id the user id
+     * @return the ids of all the users that are friends with the given user
+     */
+    private List<Integer> prieteniiLui(int id) {
+        return StreamSupport.stream(repoPrietenii.findAll().spliterator(), false)
+                .filter(p -> p.getIdUtilizator1() == id || p.getIdUtilizator2() == id)
+                .map(p -> p.getIdUtilizator1() == id ? p.getIdUtilizator2() : p.getIdUtilizator1())
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Builds the friendship graph as an adjacency list.
      *
      * @return for each user id, the list of his friends' ids
      */
     private Map<Integer, List<Integer>> construiesteAdiacenta() {
-    Map<Integer, List<Integer>> adiacenta = new HashMap<>();
-    for (Utilizator u : repoUtilizatori.findAll()) {
-        adiacenta.put(u.getId(), new ArrayList<>());
+        return StreamSupport.stream(repoUtilizatori.findAll().spliterator(), false)
+                .collect(Collectors.toMap(Utilizator::getId, u -> prieteniiLui(u.getId())));
     }
-    for (Prietenie p : repoPrietenii.findAll()) {
-        int a = p.getIdUtilizator1();
-        int b = p.getIdUtilizator2();
-        adiacenta.get(a).add(b);
-        adiacenta.get(b).add(a);
-    }
-    return adiacenta;
-}
 
     /**
-     * Marks as visited all users reachable from the given user.
+     * Marks as visited all users reachable from the given user (DFS).
+     *
+     * @param id the starting user id
+     * @param adiacenta the adjacency list of the friendship graph
+     * @param vizitati the ids already visited; it is updated by the search
      */
     private void dfs(int id, Map<Integer, List<Integer>> adiacenta, Set<Integer> vizitati) {
         vizitati.add(id);
-        for (int vecin : adiacenta.get(id)) {
-            if (!vizitati.contains(vecin)) {
-                dfs(vecin, adiacenta, vizitati);
-            }
-        }
+        adiacenta.get(id).stream()
+                .filter(vecin -> !vizitati.contains(vecin))
+                .forEach(vecin -> dfs(vecin, adiacenta, vizitati));
     }
+
+    /**
+     * Finds the community of a user.
+     *
+     * @param id the user id
+     * @param adiacenta the adjacency list of the friendship graph
+     * @return the ids of all the users reachable from the given user, in the order they were found
+     */
+    private Set<Integer> componentaDe(int id, Map<Integer, List<Integer>> adiacenta) {
+        Set<Integer> vizitati = new LinkedHashSet<>();
+        dfs(id, adiacenta, vizitati);
+        return vizitati;
+    }
+
+    /**
+     * Finds all the communities.
+     *
+     * @param adiacenta the adjacency list of the friendship graph
+     * @return the communities, each one as the set of its users' ids
+     */
+    private List<Set<Integer>> comunitati(Map<Integer, List<Integer>> adiacenta) {
+        return adiacenta.keySet().stream()
+                .map(id -> componentaDe(id, adiacenta))
+                .distinct()
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
     /**
      * Counts the communities.
      *
      * @return the number of communities (connected components of the friendship graph)
      */
     public int numarComunitati() {
-        Map<Integer, List<Integer>> adiacenta = construiesteAdiacenta();
-        Set<Integer> vizitati = new HashSet<>();
-        int contor = 0;
-        for (int id : adiacenta.keySet()) {
-            if (!vizitati.contains(id)) {
-                contor++;
-                dfs(id, adiacenta, vizitati);
-            }
-        }
-
-        return contor;
-    }
-    /**
-     * Collects in 'comunitate' all users reachable from the given user.
-     */
-    private void colecteazaComunitate(int id, Map<Integer, List<Integer>> adiacenta,
-                                      Set<Integer> vizitati, List<Integer> comunitate) {
-        vizitati.add(id);
-        comunitate.add(id);
-        for (int vecin : adiacenta.get(id)) {
-            if (!vizitati.contains(vecin)) {
-                colecteazaComunitate(vecin, adiacenta, vizitati, comunitate);
-            }
-        }
+        return comunitati(construiesteAdiacenta()).size();
     }
 
     /**
      * Finds the longest simple path starting at a user (DFS with backtracking).
+     * The loop was replaced by a stream; the shared set peDrum is restored
+     * before each call returns, so the recursion stays correct.
      *
+     * @param id the starting user id
+     * @param adiacenta the adjacency list of the friendship graph
+     * @param peDrum the ids on the current path
      * @return the length of the longest simple path starting at the given user
      */
     private int drumMaxim(int id, Map<Integer, List<Integer>> adiacenta, Set<Integer> peDrum) {
         peDrum.add(id);
-        int max = 0;
-        for (int vecin : adiacenta.get(id)) {
-            if (!peDrum.contains(vecin)) {
-                int lungime = 1 + drumMaxim(vecin, adiacenta, peDrum);
-                if (lungime > max) {
-                    max = lungime;
-                }
-            }
-        }
+        int max = adiacenta.get(id).stream()
+                .filter(vecin -> !peDrum.contains(vecin))
+                .mapToInt(vecin -> 1 + drumMaxim(vecin, adiacenta, peDrum))
+                .max()
+                .orElse(0);
         peDrum.remove(id);
         return max;
+    }
+
+    /**
+     * Finds the longest simple path inside a community.
+     *
+     * @param comunitate the ids of the users of the community
+     * @param adiacenta the adjacency list of the friendship graph
+     * @return the length of the longest simple path that starts at one of the users
+     */
+    private int lungimeDrumMaxim(Set<Integer> comunitate, Map<Integer, List<Integer>> adiacenta) {
+        return comunitate.stream()
+                .mapToInt(nod -> drumMaxim(nod, adiacenta, new HashSet<>()))
+                .max()
+                .orElse(0);
     }
 
     /**
@@ -225,38 +292,11 @@ public class Service {
      */
     public List<Utilizator> comunitateSociabila() {
         Map<Integer, List<Integer>> adiacenta = construiesteAdiacenta();
-        Set<Integer> vizitati = new HashSet<>();
-        List<Integer> cea = new ArrayList<>();
-        int ceaMaiMare = -1;
-
-        for (int id : adiacenta.keySet()) {
-            if (!vizitati.contains(id)) {
-                List<Integer> comunitate = new ArrayList<>();
-                colecteazaComunitate(id, adiacenta, vizitati, comunitate);
-
-                int lungime = 0;
-                for (int nod : comunitate) {
-                    int drum = drumMaxim(nod, adiacenta, new HashSet<>());
-                    if (drum > lungime) {
-                        lungime = drum;
-                    }
-                }
-
-                if (lungime > ceaMaiMare) {
-                    ceaMaiMare = lungime;
-                    cea = comunitate;
-                }
-            }
-        }
-
-        List<Utilizator> rezultat = new ArrayList<>();
-        for (int id : cea) {
-            rezultat.add(repoUtilizatori.findOne(id));
-        }
-        return rezultat;
+        return comunitati(adiacenta).stream()
+                .max(Comparator.comparingInt(c -> lungimeDrumMaxim(c, adiacenta)))
+                .orElse(Collections.emptySet())
+                .stream()
+                .map(repoUtilizatori::findOne)
+                .collect(Collectors.toList());
     }
-
 }
-
-
-

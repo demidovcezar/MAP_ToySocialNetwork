@@ -63,7 +63,7 @@ public class Utilizator extends Entity<Integer> implements Comparable<Utilizator
     {
         return nume+" "+prenume;
     }
-    @Override
+
     public int compareTo(Utilizator s)
     {
         int r= nume.compareTo(s.nume);
